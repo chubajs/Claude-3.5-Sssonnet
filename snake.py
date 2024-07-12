@@ -23,7 +23,7 @@ SNAKE_MODEL = "claude-3-5-sonnet-20240620"
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-client = Anthropic(api_key="YOUR API KEY")
+client = Anthropic(api_key="YOUR_API_KEY")
 
 MAX_HISTORY = 60  # Maximum number of previous states to remember
 
@@ -64,7 +64,8 @@ class SnakeGame:
 
     def get_state(self):
         return {
-            "snake": self.snake,
+            "snake": self.snake[1:],  # Тело змейки без головы
+            "head": self.snake[0],    # Голова змейки отдельно
             "food": self.food,
             "width": self.width,
             "height": self.height
@@ -73,7 +74,7 @@ class SnakeGame:
     def add_to_history(self, message):
         self.message_history.append(message)
 
-game = SnakeGame(20, 20)
+game = SnakeGame(10, 10)
 
 @app.get("/")
 async def get():
@@ -96,14 +97,36 @@ async def handle_next_move(websocket: WebSocket):
         logger.info("Asking Claude for next move...")
 
         # Prepare the context with game state and message history
-        context = f"You are the snake in a 20x20 Snake game. This is your life. The current game state is: {game.get_state()}. "
-        context += "The snake wraps around the board when it reaches the edges. "
-        context += "What direction should the snake move next to eat the food and avoid hitting itself? "
-        context +="its important to get to the food as fast as possible. Your life depends on it."
-        context += "Use the move_snake tool to make your move. You can move up, down, left, or right"
-        # context += "Use an emoji to describe your mood as you are in the game. this way mood: the emoji you want to use. JUST the emoji no explanation.\n\n"
-        context += "Briefly describe your thought process behind the move you want to make max 20 words.\n\n"
-        # context += "Briedly describe how you feel about being a snake in 10 words or less."
+        game_state = game.get_state()
+        context = f"""You are the snake in a 10x10 Snake game. This is your life. The current game state is:
+Snake head: {game_state['head']}
+Snake body: {game_state['snake']}
+Food position: {game_state['food']}
+Current direction: {game.direction}
+
+The snake wraps around the board when it reaches the edges. 
+What direction should the snake move next to eat the food and avoid hitting itself? 
+It's important to get to the food as fast as possible. Your life depends on it.
+Remember:
+- The top-left corner of the board is (0, 0)
+- The bottom-right corner of the board is (9, 9)
+
+Here is how function works:
+            if direction == "up":
+                game.change_direction((0, 1))
+            elif direction == "down":
+                game.change_direction((0, -1))
+            elif direction == "left":
+                game.change_direction((-1, 0))
+            elif direction == "right":
+                game.change_direction((1, 0))
+
+Use the move_snake tool to make your move. You can move up, down, left, or right.
+Use an emoji to describe your mood as you are in the game. Format: mood: [emoji]
+Briefly describe your thought process behind the move you want to make in 20 words or less in Russian.
+Briefly describe in Russian how you feel about being a snake in 10 words or less. Be short in words.
+Be creative, have fun, think deeply, and make the best move! Good luck! 🐍🎲🍀🎉👍🏽👏🏽🔥🚀🌟🎯🏆🎈🎊🎁🎮🎰🎳🎱🎣
+"""
         
         if game.message_history:
             context += "Previous moves:\n"
@@ -116,7 +139,7 @@ async def handle_next_move(websocket: WebSocket):
             temperature=0.5,
             tools=[{
                 "name": "move_snake",
-                "description": "This tool moves the snake in the Snake game in the specified direction. Use this tool when deciding the next move for the snake to avoid obstacles and eat the food. The direction parameter specifies which way the snake should move and can be 'up', 'down', 'left', or 'right'. Ensure that the snake does not move in the opposite direction of its current movement to avoid an immediate collision.",
+                "description": "This tool moves the snake in the Snake game in the specified direction. Use this tool when deciding the next move for the snake to avoid obstacles and eat the food. The direction parameter specifies which way the snake should move and can be 'up' - (x=0, y=+1), 'down' - (x=0, y=-1), 'left' - (x=-1, y=0), or 'right' -  (x=+1, y=0). Ensure that the snake does not move in the opposite direction of its current movement to avoid an immediate collision.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -152,16 +175,14 @@ async def handle_next_move(websocket: WebSocket):
             direction = tool_use_block.input["direction"]
             logger.info(f"Claude decided to move: {direction}")
 
-            # Send tool usage message
             await websocket.send_json({"type": "tool_usage", "direction": direction})
 
-            # Add the move to the game's message history
             game.add_to_history(f"Moved {direction}")
 
             if direction == "up":
-                game.change_direction((0, -1))
-            elif direction == "down":
                 game.change_direction((0, 1))
+            elif direction == "down":
+                game.change_direction((0, -1))
             elif direction == "left":
                 game.change_direction((-1, 0))
             elif direction == "right":

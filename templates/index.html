@@ -42,7 +42,7 @@
         const socket = new WebSocket(`ws://${window.location.host}/ws`);
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const cellSize = 20;
+        const cellSize = canvas.width / 10;
         const claudeThinking = document.getElementById('claudeThinking');
         const gameOverlay = document.getElementById('gameOverlay');
 
@@ -92,21 +92,38 @@
                 ctx.stroke();
             }
 
-            // Draw snake
+            // Draw snake body
             const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
             gradient.addColorStop(0, '#059669');
             gradient.addColorStop(1, '#10b981');
             ctx.fillStyle = gradient;
+            
+            // Draw body
             for (let segment of gameState.snake) {
                 ctx.beginPath();
-                ctx.roundRect(segment[0] * cellSize, segment[1] * cellSize, cellSize - 1, cellSize - 1, 5);
+                ctx.roundRect(segment[0] * cellSize, (9 - segment[1]) * cellSize, cellSize - 1, cellSize - 1, 5);
                 ctx.fill();
             }
+            
+            // Draw head
+            const head = gameState.head;
+            ctx.fillStyle = '#047857'; // Darker green for the head
+            ctx.beginPath();
+            ctx.roundRect(head[0] * cellSize, (9 - head[1]) * cellSize, cellSize - 1, cellSize - 1, 5);
+            ctx.fill();
+            
+            // Add eyes to the head
+            ctx.fillStyle = '#ffffff';
+            const eyeSize = cellSize / 5;
+            ctx.beginPath();
+            ctx.arc(head[0] * cellSize + cellSize / 3, (9 - head[1]) * cellSize + cellSize / 3, eyeSize, 0, 2 * Math.PI);
+            ctx.arc(head[0] * cellSize + 2 * cellSize / 3, (9 - head[1]) * cellSize + cellSize / 3, eyeSize, 0, 2 * Math.PI);
+            ctx.fill();
 
             // Draw food
             ctx.fillStyle = '#f43f5e';
             ctx.beginPath();
-            ctx.arc(gameState.food[0] * cellSize + cellSize / 2, gameState.food[1] * cellSize + cellSize / 2, cellSize / 2 - 2, 0, 2 * Math.PI);
+            ctx.arc(gameState.food[0] * cellSize + cellSize / 2, (9 - gameState.food[1]) * cellSize + cellSize / 2, cellSize / 2 - 2, 0, 2 * Math.PI);
             ctx.fill();
 
             // Add glow to food
